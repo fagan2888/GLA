@@ -7,56 +7,60 @@ import sqlite3
 
 wpage= 'https://www.london.gov.uk/about-us/greater-london-authority-gla/spending-money-wisely/our-spending'
 
-def give_me_soup(wpage):
-    req = urllib2.Request(wpage)
-    page = urllib2.urlopen(req)
-    soup = BeautifulSoup(page, 'html5lib')
-    print 'souping', wpage
-    return soup
+req = urllib2.Request(wpage)
+page = urllib2.urlopen(req)
+soup = BeautifulSoup(page, 'html5lib')
 
-def list_of_links(wpage):
-    soup = give_me_soup(wpage)
-    table = soup.find_all('table')
+table = soup.find_all('table')     # Find all <table> tags
+thelist = []                       # An empty list
 
-    thelist = []
-    for t in table:
-        if len(t.find_all('th')) > 0:
+for t in table:
+    if len(t.find_all('th')) > 0:  # Only select tables with csv files
 
-            for a in t.find_all('a', href=True):
-                thelink = 'https:' + a['href']
-                
-                if len(thelink) < 40:
-                   soup = give_me_soup(thelink)
-                   aa = soup.find_all(href = re.compile('.csv'))[0]
-                   thelink = aa['href']
-                   thelist.append(thelink)
-                else:
-                   thelist.append(thelink)
+        for a in t.find_all('a', href=True):   
+            thelink = 'https:' + a['href']     # Find all hyperlinks in the table
+            
+            if len(thelink) < 40:        # If True, thelink is a link to another webpage
+                                         # containing the csv file
 
-    return thelist 
+               req = urllib2.Request(thelink)    # Scrap thelink wepage
+               page = urllib2.urlopen(req)
+               soup = BeautifulSoup(page, 'html5lib')
 
-def stack_dataframes(thelist):
-    df = pd.DataFrame()
+               aa = soup.find_all(href = re.compile('.csv'))[0] # Extract the only csv file
+               thelink = aa['href']
+               thelist.append(thelink)   # Append results to the list
+            else:
+               thelist.append(thelink)   # If the link is a link to the csv file, append the
+                                         # results straight away
 
-    for num,thefile in enumerate(thelist):
-        print thefile
-        tmp = pd.read_csv(thefile, header=None) 
-        tmp.dropna(inplace=True, how='all',axis=1, thresh=10)
-        
-        try:
-           ix = tmp.loc[tmp[0] == 'Vendor ID'].index[0]
-        except KeyError:
-           ix = tmp.loc[tmp[1] == 'Vendor ID'].index[0]
-        
-        column_names = tmp.loc[ix]
-        tmp = tmp[(ix + 1) :]
-        tmp.columns = column_names
-        tmp.dropna(inplace=True, how='all',axis=0)
-        tmp.dropna(inplace=True, axis = 0)
 
-        df = df.append(tmp, ignore_index = True)
+ df = pd.DataFrame()
+ for thefile in thelist:
+     print 'Extracting ', thefile
+     tmp = pd.read_csv(thefile, header=None) 
+     # Drop rows with all missing values
+     tmp.dropna(inplace=True, how='all',axis=1, thresh=10)
+     
+     # Find the row with the column names
+     try:
+        ix = tmp.loc[tmp[0] == 'Vendor ID'].index[0]
+     except KeyError:
+        ix = tmp.loc[tmp[1] == 'Vendor ID'].index[0]
+     
+     column_names = tmp.loc[ix]
+     # Remove summary from the file header
+     tmp = tmp[(ix + 1) :]
+     tmp.columns = column_names
+     # Drop columns with all missing values
+     tmp.dropna(inplace=True, how='all',axis=0)
+     tmp.dropna(inplace=True, axis = 0)
 
-    return df
+     df = df.append(tmp, ignore_index = True)
+
+
+fff = urllib2.urlopen(thelist[0])
+
 
 def clean_par(text):
     if '(' in text:
@@ -65,7 +69,7 @@ def clean_par(text):
         output = text
     return output
 
-thelist = list_of_links(wpage)
+thelist = list_of_links(soup)
 df = stack_dataframes(thelist)
 df = df[df.columns[2:]]
 
