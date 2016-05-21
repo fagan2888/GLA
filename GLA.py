@@ -4,7 +4,7 @@ import urllib2
 import matplotlib.pylab as plt
 import re
 import sqlite3
-
+import numpy as np
 wpage= 'https://www.london.gov.uk/about-us/greater-london-authority-gla/spending-money-wisely/our-spending'
 
 req = urllib2.Request(wpage)
@@ -35,43 +35,42 @@ for t in table:
                                          # results straight away
 
 
- df = pd.DataFrame()
- for thefile in thelist:
-     print 'Extracting ', thefile
+
+from __future__ import print_function
+
+df = pd.DataFrame()
+print('Running')
+for num, thefile in enumerate(thelist):
+     print(num, end="  "),
      tmp = pd.read_csv(thefile, header=None) 
+
      # Drop rows with all missing values
      tmp.dropna(inplace=True, how='all',axis=1, thresh=10)
      
-     # Find the row with the column names
-     try:
-        ix = tmp.loc[tmp[0] == 'Vendor ID'].index[0]
-     except KeyError:
-        ix = tmp.loc[tmp[1] == 'Vendor ID'].index[0]
-     
+     # Find the row with the column names     
+     ix = np.where(tmp.values == 'Vendor ID')[0][0]
      column_names = tmp.loc[ix]
-     # Remove summary from the file header
+     
+     # Remove summary from file header
      tmp = tmp[(ix + 1) :]
      tmp.columns = column_names
+     
      # Drop columns with all missing values
-     tmp.dropna(inplace=True, how='all',axis=0)
+     tmp.dropna(inplace=True, how='all', axis=0)
      tmp.dropna(inplace=True, axis = 0)
-
+     
+     # Append results to dataframe
      df = df.append(tmp, ignore_index = True)
-
-
-fff = urllib2.urlopen(thelist[0])
+print('Done')
 
 
 def clean_par(text):
+    # transform '(123)' -> -123 
     if '(' in text:
         output = ('-' + re.sub('[()]','',text))
     else:
         output = text
     return output
-
-thelist = list_of_links(soup)
-df = stack_dataframes(thelist)
-df = df[df.columns[2:]]
 
 df['Amount'] = df['Amount'].map(lambda x: clean_par(x))
 df['Amount'] = df['Amount'].map(lambda x: x.replace(',','')).astype(float)
