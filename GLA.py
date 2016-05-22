@@ -18,6 +18,7 @@ for t in table:
     if len(t.find_all('th')) > 0:  # Only select tables with csv files
 
         for a in t.find_all('a', href=True):   
+            print a
             thelink = 'https:' + a['href']     # Find all hyperlinks in the table
             
             if len(thelink) < 40:        # If True, thelink is a link to another webpage
